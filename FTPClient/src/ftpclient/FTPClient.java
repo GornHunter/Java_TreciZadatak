@@ -1,7 +1,11 @@
 package ftpclient;
 
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
@@ -16,12 +20,15 @@ import javax.crypto.spec.IvParameterSpec;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.text.BadLocationException;
 
@@ -178,7 +185,7 @@ public class FTPClient extends javax.swing.JFrame {
         IvParameterSpec ivParameterSpec = new IvParameterSpec(initializationVector);
         
         //Inicijalizujte AESCipher u Cipher.DECRYPT_MODE modu sa secretKeyAES
-        AESCipher.init(Cipher.ENCRYPT_MODE, secretKeyAES, ivParameterSpec);
+        AESCipher.init(Cipher.DECRYPT_MODE, secretKeyAES, ivParameterSpec);
   
         //vrati dekriptovani ulaz koristeci prethodno inicijalizovan AESCipher
         return AESCipher.doFinal(input); //samo da se ne bi bunio kompajler
@@ -206,11 +213,11 @@ public class FTPClient extends javax.swing.JFrame {
      * Prima niz bajtova od servera i dekriptuje ih koristeci tajni AES kljuc
      * @return dekriptovani niz bajtova
      */
-    public byte[] receiveAndDecryptMessage(){
+    public byte[] receiveAndDecryptMessage(String msg){
         byte[] ret = null;
         try {
             //dodato
-            is = socket.getInputStream();
+            this.is = socket.getInputStream();
             
             //cekaj dok nesto ne stigne
             while (this.is.available() <= 0);
@@ -223,9 +230,9 @@ public class FTPClient extends javax.swing.JFrame {
             ret = do_AESDecryption(receivedBytes);
             
         } catch (IOException ex) {
-            Logger.getLogger(FTPClient.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(FTPClient.class.getName()).log(Level.SEVERE, "Klijent IOExc: " + msg, ex);
         } catch (Exception ex) {
-            Logger.getLogger(FTPClient.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(FTPClient.class.getName()).log(Level.SEVERE, "Klijent Exc: " + msg, ex);
         }
         return ret;
     }
@@ -235,14 +242,14 @@ public class FTPClient extends javax.swing.JFrame {
      * kao izlazna konekcija ka serveru
      * @param plainMsg nekriptovana poruka koja treba da se salje
      */
-    public void encryptAndSendMessage(byte[] plainMsg){
+    public void encryptAndSendMessage(byte[] plainMsg, String msg){
         try {
             byte[] encryptedMsg = do_AESEncryption(plainMsg);
             
-            os = socket.getOutputStream();
-            os.write(encryptedMsg);
+            this.os = socket.getOutputStream();
+            this.os.write(encryptedMsg);
         } catch (Exception ex) {
-            Logger.getLogger(FTPClient.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(FTPClient.class.getName()).log(Level.SEVERE, "Klijent Exc: " + msg, ex);
         }
         //posalji enkriptovanu poruku koristeci OutputStream os
     }
@@ -296,6 +303,7 @@ public class FTPClient extends javax.swing.JFrame {
         taDatoteke.setEditable(false);
         taDatoteke.setColumns(20);
         taDatoteke.setRows(5);
+        taDatoteke.setToolTipText("");
         taDatoteke.setEnabled(false);
         taDatoteke.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent evt) {
@@ -304,6 +312,7 @@ public class FTPClient extends javax.swing.JFrame {
         });
         spDatoteke.setViewportView(taDatoteke);
 
+        taSadrzajDatoteke.setEditable(false);
         taSadrzajDatoteke.setColumns(20);
         taSadrzajDatoteke.setRows(5);
         taSadrzajDatoteke.setEnabled(false);
@@ -312,14 +321,24 @@ public class FTPClient extends javax.swing.JFrame {
         lSadrzajDatoteke.setText("Sadrzaj primljene datoteke:");
         lSadrzajDatoteke.setEnabled(false);
 
-        cbTipoviDatoteka.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "All", "txt", "pdf", "jpeg" }));
+        cbTipoviDatoteka.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "All", "txt", "pdf", "jpeg", "jpg" }));
         cbTipoviDatoteka.setEnabled(false);
 
         btnTraziDatoteke.setText("Trazi");
         btnTraziDatoteke.setEnabled(false);
+        btnTraziDatoteke.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnTraziDatotekeActionPerformed(evt);
+            }
+        });
 
         btnPreuzmiDatoteku.setText("Preuzmi datoteku");
         btnPreuzmiDatoteku.setEnabled(false);
+        btnPreuzmiDatoteku.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnPreuzmiDatotekuActionPerformed(evt);
+            }
+        });
 
         lSacuvajNaPutanji.setText("Sacuvaj na putanji:");
         lSacuvajNaPutanji.setEnabled(false);
@@ -328,6 +347,11 @@ public class FTPClient extends javax.swing.JFrame {
 
         btnPretrazi.setText("Pretrazi");
         btnPretrazi.setEnabled(false);
+        btnPretrazi.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnPretraziActionPerformed(evt);
+            }
+        });
 
         btnKonekcija.setText("Konektuj se");
         btnKonekcija.addActionListener(new java.awt.event.ActionListener() {
@@ -354,6 +378,11 @@ public class FTPClient extends javax.swing.JFrame {
 
         btnDiskonekcija.setText("Diskonektuj se");
         btnDiskonekcija.setEnabled(false);
+        btnDiskonekcija.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnDiskonekcijaActionPerformed(evt);
+            }
+        });
 
         mKonfiguracija.setText("Konfiguracija");
 
@@ -371,6 +400,11 @@ public class FTPClient extends javax.swing.JFrame {
 
         miPrikazDatoteke.setSelected(true);
         miPrikazDatoteke.setText("Prikaz datoteke");
+        miPrikazDatoteke.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                miPrikazDatotekeActionPerformed(evt);
+            }
+        });
         mOpcije.add(miPrikazDatoteke);
 
         miIzlaz.setText("Izlaz");
@@ -467,19 +501,18 @@ public class FTPClient extends javax.swing.JFrame {
 
     private void btnKonekcijaActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnKonekcijaActionPerformed
         // TODO add your handling code here:
+        
         if(serverConfiguration.getIPAdresaServera().equals("") && serverConfiguration.getPortServera() == 0){
             JOptionPane.showMessageDialog(this, "Polja IP adresa servera i port moraju biti popunjena da bi se povezali na server. Da bi uradili to trebate otici u meni Konfiguracija i izabrati opciju Server gde cete popuniti polja.");
         }
         else{
             try{
                 socket = new Socket(serverConfiguration.getIPAdresaServera(), serverConfiguration.getPortServera());
-                os = socket.getOutputStream();
-                os.write("KONEKCIJA".getBytes());
                 JOptionPane.showMessageDialog(this, "Uspesno ste se povezali na server.");
                 this.btnPreuzmiKljuc.setEnabled(true);
+                this.btnKonekcija.setEnabled(false);
             }
             catch(Exception ex){
-                this.btnPreuzmiKljuc.setEnabled(false);
                 JOptionPane.showMessageDialog(this, "Greska prilikom povezivanja na server!\nPorverite da li ste uneli dobru IP adresu ili port!");
             }
         }
@@ -510,11 +543,6 @@ public class FTPClient extends javax.swing.JFrame {
     private void btnPreuzmiKljucActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnPreuzmiKljucActionPerformed
         // TODO add your handling code here:
         try{
-            //kod ovog je problem ako ne stavim ponovo socket nece psolati serveru ili server ne registruje
-            //socket = new Socket(serverConfiguration.getIPAdresaServera(), serverConfiguration.getPortServera());
-            os = socket.getOutputStream();
-            os.write("PREUZMI_RSA_KLJUC".getBytes());
-            
             is = socket.getInputStream();
             while (this.is.available() <= 0);
             int len = this.is.available();
@@ -524,18 +552,19 @@ public class FTPClient extends javax.swing.JFrame {
             createServerPublicRSAKey(receivedBytes);
             JOptionPane.showMessageDialog(this, "Server Public RSA key primljen!");
             this.btnSaljiKljucIV.setEnabled(true);
+            this.btnPreuzmiKljuc.setEnabled(false);
         }
         catch(Exception ex){}
     }//GEN-LAST:event_btnPreuzmiKljucActionPerformed
 
     private void btnSaljiKljucIVActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSaljiKljucIVActionPerformed
         // TODO add your handling code here:
-        /*try{
-           socket = new Socket(serverConfiguration.getIPAdresaServera(), serverConfiguration.getPortServera());
+        try{
+            //slanje AES kljuca
            secretKeyAES = createAESKey();
            byte[] secretKey = encryptKeyRSA();
            os = socket.getOutputStream();
-           os.write("SALJI_AES_KLJUC".getBytes());
+           os.write(secretKey);
            
            
            is = socket.getInputStream();
@@ -543,11 +572,136 @@ public class FTPClient extends javax.swing.JFrame {
            int len = this.is.available();
            byte[] receivedBytes = new byte[len];
            this.is.read(receivedBytes);
+           JOptionPane.showMessageDialog(this, new String(receivedBytes));
            
-           //JOptionPane.showMessageDialog(this, "Server Public RSA key primljen!");
+           Thread.sleep(1000);
+           //slanje inicijalizacionog vecktora
+           createInitializationVector();
+           byte[] initVector = encryptInitializationVector();
+           os = socket.getOutputStream();
+           os.write(initVector);
+           
+           is = socket.getInputStream();
+           while (this.is.available() <= 0);
+           len = this.is.available();
+           receivedBytes = new byte[len];
+           this.is.read(receivedBytes);
+           JOptionPane.showMessageDialog(this, new String(receivedBytes));
+           
+           this.btnSaljiKljucIV.setEnabled(false);
+           this.cbTipoviDatoteka.setEnabled(true);
+           this.btnTraziDatoteke.setEnabled(true);
+           this.taDatoteke.setEnabled(true);
+           this.btnPretrazi.setEnabled(true);
+           this.taSadrzajDatoteke.setEnabled(true);
+           this.lDostupneDatoteke.setEnabled(true);
+           this.lSadrzajDatoteke.setEnabled(true);
+           this.lSacuvajNaPutanji.setEnabled(true);
+           this.tfSacuvajNaPutanji.setEnabled(true);
+           this.btnPreuzmiDatoteku.setEnabled(true);
         }
-        catch(Exception ex){}*/
+        catch(Exception ex){}
     }//GEN-LAST:event_btnSaljiKljucIVActionPerformed
+
+    private void btnTraziDatotekeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnTraziDatotekeActionPerformed
+        // TODO add your handling code here:
+        this.taDatoteke.setText("");
+        String type = (String)this.cbTipoviDatoteka.getSelectedItem();
+        String msg = "TRAZI_TIP_DATOTEKE=" + type;
+        encryptAndSendMessage(msg.getBytes(), "metoda trazi fajlove - encrypt greska!");
+        
+        byte[] ret = receiveAndDecryptMessage("metoda trazi fajlove - decrypt greska!");
+        String s = new String(ret);
+        int num = Integer.parseInt(s.split("=")[0]);
+        for(int i = 1;i <= num;i++)
+            this.taDatoteke.append(s.split("=")[i] + "\n");
+    }//GEN-LAST:event_btnTraziDatotekeActionPerformed
+
+    private void btnDiskonekcijaActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnDiskonekcijaActionPerformed
+        // TODO add your handling code here:
+        try{
+            encryptAndSendMessage("Exit".getBytes(), "diskonekcija");
+            socket.close();
+        }
+        catch(Exception ex){}
+        System.exit(0);
+    }//GEN-LAST:event_btnDiskonekcijaActionPerformed
+
+    private void btnPretraziActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnPretraziActionPerformed
+        // TODO add your handling code here:
+        //String name = this.taDatoteke.getSelectedText();
+        //JOptionPane.showMessageDialog(this, name);
+        JFileChooser jfc = new JFileChooser("");
+        
+        jfc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        int response = jfc.showOpenDialog(null);
+        String savePath = new String();
+        
+        if(response == JFileChooser.APPROVE_OPTION){
+            try{
+                savePath = jfc.getSelectedFile().getPath();
+            }
+            catch(Exception ex){}
+        }
+        this.tfSacuvajNaPutanji.setText(savePath);
+    }//GEN-LAST:event_btnPretraziActionPerformed
+
+    private void miPrikazDatotekeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_miPrikazDatotekeActionPerformed
+        // TODO add your handling code here:
+        if(this.miPrikazDatoteke.isSelected()){
+            this.lSadrzajDatoteke.setVisible(true);
+            this.spSadrzajDatoteke.setVisible(true);
+            this.setSize(755, 575);
+        }
+        else{
+            this.lSadrzajDatoteke.setVisible(false);
+            this.spSadrzajDatoteke.setVisible(false);
+            this.setSize(755, 400);
+        }
+    }//GEN-LAST:event_miPrikazDatotekeActionPerformed
+
+    private void btnPreuzmiDatotekuActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnPreuzmiDatotekuActionPerformed
+        // TODO add your handling code here:
+        String fileToDownload = new String();
+                
+        if(this.tfSacuvajNaPutanji.getText().equals(""))
+            JOptionPane.showMessageDialog(this, "Nije uneta putanja za cuvanje odabranog fajla!");
+        else{
+            //JOptionPane.showMessageDialog(this, "Uspesno skinut fajl!");
+            String msg = "PREUZMI_FAJL=" + this.taDatoteke.getSelectedText();
+            encryptAndSendMessage(msg.getBytes(), "metoda preuzmi fajl - encrypt greska!");
+            fileToDownload = this.tfSacuvajNaPutanji.getText() + "/" + this.taDatoteke.getSelectedText();
+            
+            try{
+                byte[] receivedBytes = receiveAndDecryptMessage("metoda preuzmi fajl - decrypt greska!");
+                /*is = socket.getInputStream();
+            
+                while (this.is.available() <= 0);
+                int len = this.is.available();
+                byte[] receivedBytes = new byte[len];
+                this.is.read(receivedBytes);*/
+                FileOutputStream fos = new FileOutputStream(fileToDownload);
+                fos.write(receivedBytes, 0, receivedBytes.length);
+                fos.close();
+            }
+            catch(Exception ex){}
+        }
+        
+        String m = new String();
+        File file = new File(fileToDownload);
+        try{
+            Scanner sc = new Scanner(file);
+            while(sc.hasNextLine())
+                m += sc.nextLine() + "\n";
+        }
+        catch(Exception ex){}
+        
+        this.taSadrzajDatoteke.setText("");
+        this.taSadrzajDatoteke.append(m);
+        
+        if(!this.btnDiskonekcija.isEnabled())
+            this.btnDiskonekcija.setEnabled(true);
+    }//GEN-LAST:event_btnPreuzmiDatotekuActionPerformed
 
     /**
      * @param args the command line arguments

@@ -45,7 +45,7 @@ public class FTPServer {
      * Prihvata u petlji klijente i za svakog novog klijenta kreira novu nit.
      * Iz petlje se moze izaci tako sto se na tastaturi otkuca Exit.
      */
-    public void acceptClients() {
+    public void acceptClients(String path) {
         boolean done = false;
         Socket client = null;
         Thread thr;
@@ -57,7 +57,7 @@ public class FTPServer {
             }
             if (client != null) {
                 //kreiraj novu nit (konstruktoru prosledi klasu koja implementira Runnable interfejs)
-                thr = new Thread(new ConnectedFTPClient(client));
+                thr = new Thread(new ConnectedFTPClient(client, path));
                 //zapamti novo-kreiranog klijenta kako bi kasnije mogao da cekas da se svi terminiraju..
                 this.clients.add(thr);
                 //..i startuj ga
@@ -92,12 +92,6 @@ public class FTPServer {
         }
     }
     
-    
-    
-    
-    
-    
-    
 
     /**
      * @param args broj porta servera i putanja FTP root direktorijuma
@@ -118,8 +112,18 @@ public class FTPServer {
         //String[] pathnames = server.FTPdir.list();
         //for(String name : pathnames)
             //System.out.println(name);
+        /*try{
+            File f = new File(args[1] + "/ja.txt");
+            Scanner sc = new Scanner(f);
+            while(sc.hasNextLine()){
+                String data = sc.nextLine();
+                System.out.println(data);
+            }
+            System.out.println(f.length());
+        }
+        catch(Exception ex){}*/
 
         //Prihvataj klijente u beskonacnoj petlji
-        server.acceptClients();
+        server.acceptClients(args[1]);
     }
 }

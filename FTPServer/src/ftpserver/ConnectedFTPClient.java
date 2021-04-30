@@ -1,9 +1,17 @@
 package ftpserver;
 
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
@@ -30,6 +38,8 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.imageio.ImageIO;
+import javax.swing.ImageIcon;
 
 public class ConnectedFTPClient implements Runnable{
     
@@ -49,7 +59,9 @@ public class ConnectedFTPClient implements Runnable{
     private KeyPair pair;
     private Cipher RSACipher;
     private Cipher AESCipher;
-    private byte[] initializationVector;    
+    private byte[] initializationVector;
+    
+    private String path;
     
     //getters and setters
     public InputStream getIs() {
@@ -68,8 +80,12 @@ public class ConnectedFTPClient implements Runnable{
         this.os = os;
     }
     
+    public String getPath(){
+        return path;
+    }
+    
     //Konstruktor klase, prima kao argument socket kao vezu sa uspostavljenim klijentom
-    public ConnectedFTPClient(Socket socket){
+    public ConnectedFTPClient(Socket socket, String path){
         this.socket = socket;
         this.privateKeyRSA = null;
         this.publicKeyRSA = null;
@@ -98,6 +114,7 @@ public class ConnectedFTPClient implements Runnable{
             Logger.getLogger(ConnectedFTPClient.class.getName()).log(Level.SEVERE, null, ex);
         }
         
+        this.path = path;
         createKeys();
     }
 
@@ -126,13 +143,13 @@ public class ConnectedFTPClient implements Runnable{
      */
     public void decryptSecretKeyAES(byte[] msg) throws InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
         //Koristite metodu init na RSACipher objektu uz mod Cipher.DECRYPT_MODE i koristeci privateKeyRSA za dekripciju
-        this.RSACipher.init(Cipher.DECRYPT_MODE, this.privateKeyRSA);
+        RSACipher.init(Cipher.DECRYPT_MODE, this.privateKeyRSA);
         
         //dekriptujte primljenu poruku
         byte[] keyBytes = RSACipher.doFinal(msg);
         
         // iz primljene poruke rekonstruisite privatni kljuc za AES
-        this.secretKeyAES = new SecretKeySpec(keyBytes, "AES");        
+        secretKeyAES = new SecretKeySpec(keyBytes, "AES");        
     }    
     
     
@@ -147,13 +164,13 @@ public class ConnectedFTPClient implements Runnable{
      */
     public void decryptInitializationVector(byte[] msg) throws InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
         //Koristite metodu init na RSACipher objektu uz mod Cipher.DECRYPT_MODE i koristeci privateKeyRSA za dekripciju
-        this.RSACipher.init(Cipher.DECRYPT_MODE, this.privateKeyRSA);
+        RSACipher.init(Cipher.DECRYPT_MODE, this.privateKeyRSA);
         
         //dekriptujte primljenu poruku
         byte[] keyBytes = RSACipher.doFinal(msg);
         
         // iz primljene poruke rekonstruisite IV za AES
-        this.initializationVector = keyBytes;        
+        initializationVector = keyBytes;        
     }    
     
     /**
@@ -247,45 +264,135 @@ public class ConnectedFTPClient implements Runnable{
     public void run() {
         //ispratite korake iz uputstva zadatka, hand-shake izmedju klijenta i servera 
         //kao i ostale poruke koje se salju/primaju u odgovarajucem redosledu
-        String msg = null;
-        try{
-            while (this.is.available() <= 0);
-            int len = this.is.available();
-            byte[] receivedBytes = new byte[len];
-            this.is.read(receivedBytes);
-            msg = new String(receivedBytes);
-        }
-        catch(Exception ex){}
-        
-        switch(msg){
-            case "PREUZMI_RSA_KLJUC":
+        String stanje = "KONEKCIJA";
+        byte[] receivedBytes = new byte[1];
+        int len;
+        String ret = new String();
+        while(true){
+            if(!stanje.equals("PREUZMI_RSA_KLJUC") && !stanje.equals("KONEKCIJA") && !stanje.equals("TRAZI_TIP_DATOTEKE") && !stanje.equals("PREUZMI_FAJL") && !stanje.equals("")){
                 try{
-                    os.write(publicKeyRSA.getEncoded());
+                    while (this.is.available() <= 0);
+                    len = this.is.available();
+                    receivedBytes = new byte[len];
+                    this.is.read(receivedBytes);
                 }
-                catch(Exception ex){
-                    ex.printStackTrace();
-                }
-                break;
-            case "SALJI_AES_KLJUC":
-                break;
-            case "KONEKCIJA":
-                break;
-            default:
-                
-        }
-        
-        /*try{
-        while (this.is.available() <= 0);
-        int len = this.is.available();
-        byte[] receivedBytes = new byte[len];
-        this.is.read(receivedBytes);
-        String m = new String(receivedBytes);
+                catch(Exception ex){}
+            }
             
-        System.out.println(m);
+            if(stanje.equals("")){
+                byte[] rcv = receiveAndDecryptMessage();
+                ret = new String(rcv);
+                if(ret.equals("Exit"))
+                    stanje = "DISKONEKCIJA";
+                else
+                    stanje = "TRAZI_TIP_DATOTEKE";
+            }
+        
+            switch(stanje){
+                case "KONEKCIJA":
+                    try{
+                        /*File file = new File(getPath() + "/aj.jpg");
+                        FileInputStream fis = new FileInputStream(getPath() + "/aj.jpg");
+                        String m = file.length() + "";
+                        byte[] b = new byte[Integer.parseInt(m)];
+                        fis.read(b, 0, (int)file.length());
+                        os.write(b);*/
+                    }
+                    catch(Exception ex){}
+                    stanje = "PREUZMI_RSA_KLJUC";
+                    break;
+                case "PREUZMI_RSA_KLJUC":
+                    try{
+                        os.write(publicKeyRSA.getEncoded());
+                    }
+                    catch(Exception ex){
+                        ex.printStackTrace();
+                    }
+                    stanje = "SALJI_AES_KLJUC_I_INIT_VECTOR";
+                    break;
+                case "SALJI_AES_KLJUC_I_INIT_VECTOR":
+                    try{
+                        decryptSecretKeyAES(receivedBytes);
+                        os.write("Server: AESKey received!".getBytes());
+                        
+                        while (this.is.available() <= 0);
+                        len = this.is.available();
+                        receivedBytes = new byte[len];
+                        this.is.read(receivedBytes);
+                        
+                        decryptInitializationVector(receivedBytes);
+                        os.write("Server: InitializationVector received!".getBytes());
+                    }
+                    catch(Exception ex){
+                        ex.printStackTrace();
+                    }
+                    stanje = "";
+                    break;
+                case "TRAZI_TIP_DATOTEKE":
+                    try{
+                        //byte[] msg = receiveAndDecryptMessage();
+                        //String ext = new String(msg);
+                        String ext = ret.split("=")[1];
+                        File file = new File(getPath());
+                        String[] names;
+                        
+                        if(!ext.equals("All")){
+                            names = file.list(new FilenameFilter() {
+                                @Override
+                                public boolean accept(File dir, String name) {
+                                    return name.endsWith("."+ext); //To change body of generated methods, choose Tools | Templates.
+                                }
+                            });
+                        }
+                        else
+                            names = file.list();
+                        
+                        String m = new String();
+                        for(int i = 0;i < names.length;i++){
+                            if(i != names.length-1)
+                                m += names[i] + "=";
+                            else
+                                m += names[i];
+                        }
+                        
+                        String mm = names.length + "=" + m;
+                        
+                        encryptAndSendMessage(mm.getBytes());
+                    }
+                    catch(Exception ex){}
+                    stanje = "PREUZMI_FAJL";
+                    break;
+                case "PREUZMI_FAJL":
+                    try{
+                        byte[] msg = receiveAndDecryptMessage();
+                        String ext = new String(msg);
+                        String fileName = ext.split("=")[1];
+                        File file = new File(getPath() + "/" + fileName);
+                        FileInputStream fis = new FileInputStream(getPath() + "/" + fileName);
+                        String m = file.length() + "";
+                        byte[] b = new byte[Integer.parseInt(m)];
+                        fis.read(b, 0, (int)file.length());
+                        Thread.sleep(100);
+                        //os.write(b);
+                        encryptAndSendMessage(b);
+                        fis.close();
+                    }
+                    catch(Exception ex){}
+                    stanje = "";
+                    break;
+                case "DISKONEKCIJA":
+                    try{
+                        is.close();
+                        os.close();
+                        socket.close();
+                    }
+                    catch(Exception ex){}
+                    stanje = "1";
+                    break;
+                default: 
+            }
         }
-        catch(Exception ex){}*/
         
         //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
-    
 }
