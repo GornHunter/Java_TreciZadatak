@@ -269,7 +269,7 @@ public class ConnectedFTPClient implements Runnable{
         int len;
         String ret = new String();
         while(true){
-            if(!stanje.equals("PREUZMI_RSA_KLJUC") && !stanje.equals("KONEKCIJA") && !stanje.equals("TRAZI_TIP_DATOTEKE") && !stanje.equals("PREUZMI_FAJL") && !stanje.equals("")){
+            if(!stanje.equals("PREUZMI_RSA_KLJUC") && !stanje.equals("KONEKCIJA") && !stanje.equals("TRAZI_TIP_DATOTEKE") && !stanje.equals("PREUZMI_FAJL") && !stanje.equals("") && !stanje.equals("1")){
                 try{
                     while (this.is.available() <= 0);
                     len = this.is.available();
@@ -287,7 +287,10 @@ public class ConnectedFTPClient implements Runnable{
                 else
                     stanje = "TRAZI_TIP_DATOTEKE";
             }
-        
+            
+            if(stanje.equals("1"))
+                break;
+            
             switch(stanje){
                 case "KONEKCIJA":
                     try{
@@ -389,7 +392,7 @@ public class ConnectedFTPClient implements Runnable{
                     catch(Exception ex){}
                     stanje = "1";
                     break;
-                default: 
+                default:
             }
         }
         
