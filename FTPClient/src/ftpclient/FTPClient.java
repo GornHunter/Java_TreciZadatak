@@ -408,6 +408,11 @@ public class FTPClient extends javax.swing.JFrame {
         mOpcije.add(miPrikazDatoteke);
 
         miIzlaz.setText("Izlaz");
+        miIzlaz.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                miIzlazActionPerformed(evt);
+            }
+        });
         mOpcije.add(miIzlaz);
 
         jMenuBar1.add(mOpcije);
@@ -702,6 +707,18 @@ public class FTPClient extends javax.swing.JFrame {
         if(!this.btnDiskonekcija.isEnabled())
             this.btnDiskonekcija.setEnabled(true);
     }//GEN-LAST:event_btnPreuzmiDatotekuActionPerformed
+
+    private void miIzlazActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_miIzlazActionPerformed
+        // TODO add your handling code here:
+        if(socket != null){
+            try{
+                socket.close();
+            }
+            catch(Exception ex){}
+        }
+        
+        System.exit(0);
+    }//GEN-LAST:event_miIzlazActionPerformed
 
     /**
      * @param args the command line arguments
