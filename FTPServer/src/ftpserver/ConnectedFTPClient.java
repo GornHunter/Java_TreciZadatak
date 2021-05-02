@@ -4,6 +4,8 @@ import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.DataOutput;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -260,6 +262,19 @@ public class ConnectedFTPClient implements Runnable{
         //posalji enkriptovanu poruku koristeci OutputStream os
     }
     
+    public void encryptAndSendFile(byte[] fileContent, int fileContentLength){
+        try {
+            byte[] encryptedFile = do_AESEncryption(fileContent);
+            
+            DataOutputStream dos = new DataOutputStream(os);
+            dos.writeInt(fileContentLength);
+            dos.write(encryptedFile);
+        } catch (Exception ex) {
+            Logger.getLogger(ConnectedFTPClient.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        //posalji enkriptovanu poruku koristeci OutputStream os
+    }
+    
     @Override
     public void run() {
         //ispratite korake iz uputstva zadatka, hand-shake izmedju klijenta i servera 
@@ -366,9 +381,15 @@ public class ConnectedFTPClient implements Runnable{
                     stanje = "PREUZMI_FAJL";
                     break;
                 case "PREUZMI_FAJL":
-                    try{
-                        byte[] msg = receiveAndDecryptMessage();
-                        String ext = new String(msg);
+                    //try{
+                        //byte[] msg = receiveAndDecryptMessage();
+                        
+                        /*while (this.is.available() <= 0);
+                        int length = this.is.available();
+                        byte[] recBytes = new byte[length];
+                        this.is.read(recBytes);
+                        
+                        String ext = new String(recBytes);
                         String fileName = ext.split("=")[1];
                         File file = new File(getPath() + "/" + fileName);
                         FileInputStream fis = new FileInputStream(getPath() + "/" + fileName);
@@ -376,11 +397,34 @@ public class ConnectedFTPClient implements Runnable{
                         byte[] b = new byte[Integer.parseInt(m)];
                         fis.read(b, 0, (int)file.length());
                         Thread.sleep(100);
-                        //os.write(b);
-                        encryptAndSendMessage(b);
+                        os.write(b);
+                        //encryptAndSendMessage(b);
+                        fis.close();*/
+                    //}
+                    //catch(Exception ex){}
+                    
+                    try{
+                        byte[] msg = receiveAndDecryptMessage();
+                        //while (this.is.available() <= 0);
+                        //int length = this.is.available();
+                        //byte[] recBytes = new byte[length];
+                        //this.is.read(recBytes);
+                            
+                        String ext = new String(msg);
+                        String fileName = ext.split("=")[1];
+                        File f = new File(getPath() + "/" + fileName);
+                                    
+                        FileInputStream fis = new FileInputStream(getPath() + "/" + fileName);
+                            
+                        byte[] fileContent = new byte[(int)f.length()];
+                        fis.read(fileContent);
+                         
+                        encryptAndSendFile(fileContent, fileContent.length);
+                         
                         fis.close();
                     }
                     catch(Exception ex){}
+                    
                     stanje = "";
                     break;
                 case "DISKONEKCIJA":

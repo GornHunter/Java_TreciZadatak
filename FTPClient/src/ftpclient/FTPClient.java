@@ -1,6 +1,8 @@
 package ftpclient;
 
 import java.io.BufferedInputStream;
+import java.io.DataInput;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -254,6 +256,45 @@ public class FTPClient extends javax.swing.JFrame {
         //posalji enkriptovanu poruku koristeci OutputStream os
     }
     
+    public byte[] receiveAndDecryptFile(String msg){
+        byte[] ret = null;
+        byte[] ret1 = null;
+        try {
+            DataInputStream dis = new DataInputStream(socket.getInputStream());
+            
+            int fileContentLength = dis.readInt();
+            
+            byte[] receivedBytes = null;
+            int rem;
+            
+            if(fileContentLength % 16 == 0){
+                rem = 0;
+                receivedBytes = new byte[fileContentLength];
+                dis.readFully(receivedBytes);
+            }
+            else{
+                rem = 16 - (fileContentLength % 16);
+                receivedBytes = new byte[fileContentLength + rem];
+                dis.readFully(receivedBytes);
+            }
+            
+            //dekriptuj poruku koristeci tajni AES kljuc
+            ret1 = do_AESDecryption(receivedBytes);
+            
+            if(fileContentLength % 16 != 0){
+                ret = new byte[fileContentLength];
+                ret = ret1;
+            }
+            else
+                ret = ret1;
+            
+        } catch (IOException ex) {
+            Logger.getLogger(FTPClient.class.getName()).log(Level.SEVERE, "Klijent IOExc: " + msg, ex);
+        } catch (Exception ex) {
+            Logger.getLogger(FTPClient.class.getName()).log(Level.SEVERE, "Klijent Exc: " + msg, ex);
+        }
+        return ret;
+    }
     
     /**
      * This method is called from within the constructor to initialize the form.
@@ -675,34 +716,49 @@ public class FTPClient extends javax.swing.JFrame {
             //JOptionPane.showMessageDialog(this, "Uspesno skinut fajl!");
             String msg = "PREUZMI_FAJL=" + this.taDatoteke.getSelectedText();
             encryptAndSendMessage(msg.getBytes(), "metoda preuzmi fajl - encrypt greska!");
+            /*try{
+                os = socket.getOutputStream();
+                os.write(msg.getBytes());
+            }
+            catch(Exception ex){}*/
             fileToDownload = this.tfSacuvajNaPutanji.getText() + "/" + this.taDatoteke.getSelectedText();
             
-            try{
-                byte[] receivedBytes = receiveAndDecryptMessage("metoda preuzmi fajl - decrypt greska!");
-                /*is = socket.getInputStream();
+            /*try{
+                //byte[] receivedBytes = receiveAndDecryptMessage("metoda preuzmi fajl - decrypt greska!");
+                is = socket.getInputStream();
             
                 while (this.is.available() <= 0);
                 int len = this.is.available();
                 byte[] receivedBytes = new byte[len];
-                this.is.read(receivedBytes);*/
+                this.is.read(receivedBytes);
+                
                 FileOutputStream fos = new FileOutputStream(fileToDownload);
                 fos.write(receivedBytes, 0, receivedBytes.length);
                 fos.close();
             }
+            catch(Exception ex){}*/
+            
+            try{
+                byte[] fileContent = receiveAndDecryptFile("metoda preuzmi fajl - deecrypt greska!");
+                
+                FileOutputStream fos = new FileOutputStream(fileToDownload);
+                fos.write(fileContent);
+                fos.close();   
+            }
             catch(Exception ex){}
-        }
+            
+            String m = new String();
+            File file = new File(fileToDownload);
+            try{
+                Scanner sc = new Scanner(file);
+                while(sc.hasNextLine())
+                    m += sc.nextLine() + "\n";
+            }
+            catch(Exception ex){}
         
-        String m = new String();
-        File file = new File(fileToDownload);
-        try{
-            Scanner sc = new Scanner(file);
-            while(sc.hasNextLine())
-                m += sc.nextLine() + "\n";
+            this.taSadrzajDatoteke.setText("");
+            this.taSadrzajDatoteke.append(m);
         }
-        catch(Exception ex){}
-        
-        this.taSadrzajDatoteke.setText("");
-        this.taSadrzajDatoteke.append(m);
         
         if(!this.btnDiskonekcija.isEnabled())
             this.btnDiskonekcija.setEnabled(true);
